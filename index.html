@@ -35,6 +35,17 @@
       font-weight: bold;
       margin-top: 25px;
       white-space: pre-line;
+      line-height: 1.6;
+    }
+
+    .nama {
+      font-size: 24px;
+      margin-top: 15px;
+    }
+
+    .sukses {
+      margin-top: 15px;
+      font-size: 20px;
     }
   </style>
 </head>
@@ -56,43 +67,140 @@
 
     const hasil = document.getElementById("hasil");
 
+    const URL_ABSENSI =
+      "https://script.google.com/macros/s/AKfycbxhjM6McPrVzY3Li_la59W9OrjykXIJUZVIR4-_mnRYXpTpowAhzP3NvYZZR3sI7zzx/exec";
+
+    let sedangMemproses = false;
+
     function berhasilScan(decodedText) {
 
+      if (sedangMemproses) {
+        return;
+      }
+
+      sedangMemproses = true;
+
       hasil.innerText =
-        "QR TERBACA!\n\n" + decodedText;
+        "QR TERBACA!\n\nMemproses absensi...";
+
+      // Mengambil ID Guru dari link QR
+      try {
+
+        const url = new URL(decodedText);
+
+        const guruId = url.searchParams.get("id");
+
+        if (!guruId) {
+
+          hasil.innerText =
+            "QR Code tidak memiliki ID Guru.";
+
+          sedangMemproses = false;
+          return;
+        }
+
+        kirimAbsensi(guruId);
+
+      } catch (error) {
+
+        hasil.innerText =
+          "QR Code tidak dikenali.";
+
+        sedangMemproses = false;
+      }
+    }
+
+
+    function kirimAbsensi(guruId) {
+
+      // Nama callback dibuat unik
+      const namaCallback =
+        "hasilAbsensi_" + Date.now();
+
+      // Membuat fungsi callback
+      window[namaCallback] = function(data) {
+
+        hasil.innerText =
+          data.message
+            .replace(/<br\s*\/?>/gi, "\n");
+
+        // Hapus callback setelah selesai
+        delete window[namaCallback];
+
+        // Scanner siap membaca QR berikutnya
+        setTimeout(function() {
+
+          sedangMemproses = false;
+
+          hasil.innerText =
+            "Kamera aktif.\n\n" +
+            "Silakan arahkan QR Code ke kamera.";
+
+        }, 4000);
+      };
+
+
+      // Membuat script untuk mengirim permintaan
+      const script =
+        document.createElement("script");
+
+      script.src =
+        URL_ABSENSI +
+        "?action=scan" +
+        "&id=" + encodeURIComponent(guruId) +
+        "&callback=" + namaCallback;
+
+      script.onerror = function() {
+
+        hasil.innerText =
+          "Gagal menghubungi sistem absensi.";
+
+        delete window[namaCallback];
+
+        sedangMemproses = false;
+      };
+
+
+      document.body.appendChild(script);
 
     }
+
 
     function gagalScan(errorMessage) {
       // Kesalahan pembacaan sementara diabaikan
     }
 
 
-    const scanner = new Html5Qrcode("reader");
+    const scanner =
+      new Html5Qrcode("reader");
 
 
     Html5Qrcode.getCameras()
+
       .then(function(devices) {
 
         if (devices && devices.length) {
 
-          // Cari kamera USB jika tersedia
+          // Gunakan kamera USB jika tersedia
           let kameraId = devices[0].id;
 
           for (let i = 0; i < devices.length; i++) {
 
             if (
               devices[i].label &&
-              devices[i].label.toLowerCase().includes("usb")
+              devices[i].label
+                .toLowerCase()
+                .includes("usb")
             ) {
+
               kameraId = devices[i].id;
               break;
             }
-
           }
 
 
           scanner.start(
+
             kameraId,
 
             {
@@ -103,19 +211,27 @@
             berhasilScan,
             gagalScan
 
-          ).then(function() {
+          )
+
+          .then(function() {
 
             hasil.innerText =
-              "Kamera aktif.\n\nSilakan arahkan QR Code ke kamera.";
+              "Kamera aktif.\n\n" +
+              "Silakan arahkan QR Code ke kamera.";
 
-          }).catch(function(error) {
+          })
+
+          .catch(function(error) {
 
             hasil.innerText =
-              "Kamera tidak dapat dibuka:\n" + error;
+              "Kamera tidak dapat dibuka:\n" +
+              error;
 
           });
 
-        } else {
+        }
+
+        else {
 
           hasil.innerText =
             "Kamera tidak ditemukan.";
@@ -123,10 +239,12 @@
         }
 
       })
+
       .catch(function(error) {
 
         hasil.innerText =
-          "Tidak dapat mengakses kamera:\n" + error;
+          "Tidak dapat mengakses kamera:\n" +
+          error;
 
       });
 
