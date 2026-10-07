@@ -144,11 +144,15 @@
       const script =
         document.createElement("script");
 
-      script.src =
-        URL_ABSENSI +
-        "?action=scan" +
-        "&id=" + encodeURIComponent(guruId) +
-        "&callback=" + namaCallback;
+     const TOKEN_SCANNER =
+  "SDIT_MUHAJIRIN_SCANNER_2026_9f7Kx2Pq";
+
+script.src =
+  URL_ABSENSI +
+  "?action=scan" +
+  "&id=" + encodeURIComponent(guruId) +
+  "&token=" + encodeURIComponent(TOKEN_SCANNER) +
+  "&callback=" + namaCallback;
 
       script.onerror = function() {
 
