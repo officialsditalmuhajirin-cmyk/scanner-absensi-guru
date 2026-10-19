@@ -1,11 +1,11 @@
+
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>Scanner Absensi Guru SDIT Al Muhajirin</title>
-
+  <title>Scanner Absensi Al Muhajirin</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
 
   <style>
@@ -37,222 +37,215 @@
       white-space: pre-line;
       line-height: 1.6;
     }
-
-    .nama {
-      font-size: 24px;
-      margin-top: 15px;
-    }
-
-    .sukses {
-      margin-top: 15px;
-      font-size: 20px;
-    }
   </style>
 </head>
 
 <body>
-
   <h1>
-    SCANNER ABSENSI GURU<br>
-    SDIT AL MUHAJIRIN
+    SCANNER ABSENSI<br>
+    SDIT & YAYASAN AL MUHAJIRIN
   </h1>
 
   <div id="reader"></div>
-
-  <div id="hasil">
-    Menyiapkan kamera...
-  </div>
+  <div id="hasil">Menyiapkan kamera...</div>
 
   <script>
-
     const hasil = document.getElementById("hasil");
 
-    const URL_ABSENSI =
+    // WEB APP SDIT
+    const URL_SDIT =
       "https://script.google.com/macros/s/AKfycbxhjM6McPrVzY3Li_la59W9OrjykXIJUZVIR4-_mnRYXpTpowAhzP3NvYZZR3sI7zzx/exec";
+
+    const TOKEN_SDIT =
+      "SDIT_MUHAJIRIN_SCANNER_2026_9f7Kx2Pq";
+
+    // WEB APP STAFF YAYASAN
+    const URL_YAYASAN =
+      "https://script.google.com/macros/s/AKfycbyyeLMr9KgQVWRUcIlvlsxelMN9P6rJfxnKupk6U-EqzlIHFCc8vHyhjwde-XU5QwXuOQ/exec";
+
+    const TOKEN_YAYASAN =
+      "STYMHJ_SCANNER_2026_a8Q7mP4x";
 
     let sedangMemproses = false;
 
     function berhasilScan(decodedText) {
+      if (sedangMemproses) return;
 
-      if (sedangMemproses) {
+      sedangMemproses = true;
+      hasil.innerText = "QR TERBACA!\nMemproses absensi...";
+
+      let staffId;
+
+      try {
+        const url = new URL(decodedText);
+        staffId = url.searchParams.get("id");
+
+        if (!staffId) {
+          throw new Error("ID tidak ditemukan");
+        }
+      } catch (error) {
+        tampilkanHasil("QR Code tidak dikenali.");
         return;
       }
 
-      sedangMemproses = true;
+      let urlAbsensi;
+      let token;
 
-      hasil.innerText =
-        "QR TERBACA!\n\nMemproses absensi...";
-
-      // Mengambil ID Guru dari link QR
-      try {
-
-        const url = new URL(decodedText);
-
-        const guruId = url.searchParams.get("id");
-
-        if (!guruId) {
-
-          hasil.innerText =
-            "QR Code tidak memiliki ID Guru.";
-
-          sedangMemproses = false;
-          return;
-        }
-
-        kirimAbsensi(guruId);
-
-      } catch (error) {
-
-        hasil.innerText =
-          "QR Code tidak dikenali.";
-
-        sedangMemproses = false;
+      if (staffId.startsWith("SDMHJ")) {
+        urlAbsensi = URL_SDIT;
+        token = TOKEN_SDIT;
+      } else if (staffId.startsWith("STYMHJ")) {
+        urlAbsensi = URL_YAYASAN;
+        token = TOKEN_YAYASAN;
+      } else {
+        tampilkanHasil(
+          "ID tidak dikenali.\nPeriksa QR Code."
+        );
+        return;
       }
+
+      kirimAbsensi(staffId, urlAbsensi, token);
     }
 
+    function tampilkanHasil(pesan) {
+      hasil.innerText = pesan;
 
-    function kirimAbsensi(guruId) {
+      setTimeout(function() {
+        sedangMemproses = false;
+        hasil.innerText =
+          "Kamera aktif.\n\n" +
+          "Silakan arahkan QR Code ke kamera.";
+      }, 5000);
+    }
 
-      // Nama callback dibuat unik
+    function kirimAbsensi(staffId, urlAbsensi, token) {
       const namaCallback =
-        "hasilAbsensi_" + Date.now();
+        "hasilAbsensi_" +
+        Date.now() + "_" +
+        Math.floor(Math.random() * 100000);
 
-      // Membuat fungsi callback
+      let selesai = false;
+
+      const script = document.createElement("script");
+
+      const batasWaktu = setTimeout(function() {
+        if (selesai) return;
+        selesai = true;
+
+        delete window[namaCallback];
+        script.remove();
+
+        tampilkanHasil(
+          "Tidak ada respons dari sistem absensi.\n" +
+          "Periksa koneksi dan URL Web App."
+        );
+      }, 15000);
+
       window[namaCallback] = function(data) {
+        if (selesai) return;
+        selesai = true;
+
+        clearTimeout(batasWaktu);
+        delete window[namaCallback];
+        script.remove();
+
+        const unit = staffId.startsWith("SDMHJ")
+          ? "SDIT"
+          : "YAYASAN";
 
         hasil.innerText =
-          data.message
-            .replace(/<br\s*\/?>/gi, "\n");
+          unit + "\n" +
+          (data.message || "Respons diterima.");
 
-        // Hapus callback setelah selesai
-        delete window[namaCallback];
+        if (data.success && data.nama) {
+          hasil.innerText += "\nNama: " + data.nama;
+        }
 
-        // Scanner siap membaca QR berikutnya
+        if (data.success && data.keterangan) {
+          hasil.innerText +=
+            "\nKeterangan: " + data.keterangan;
+        }
+
+        if (data.success && data.waktu) {
+          hasil.innerText += "\nWaktu: " + data.waktu;
+        }
+
         setTimeout(function() {
-
           sedangMemproses = false;
-
           hasil.innerText =
             "Kamera aktif.\n\n" +
             "Silakan arahkan QR Code ke kamera.";
-
-        }, 4000);
+        }, 5000);
       };
-
-
-      // Membuat script untuk mengirim permintaan
-      const script =
-        document.createElement("script");
-
-     const TOKEN_SCANNER =
-  "SDIT_MUHAJIRIN_SCANNER_2026_9f7Kx2Pq";
-
-script.src =
-  URL_ABSENSI +
-  "?action=scan" +
-  "&id=" + encodeURIComponent(guruId) +
-  "&token=" + encodeURIComponent(TOKEN_SCANNER) +
-  "&callback=" + namaCallback;
 
       script.onerror = function() {
+        if (selesai) return;
+        selesai = true;
 
-        hasil.innerText =
-          "Gagal menghubungi sistem absensi.";
-
+        clearTimeout(batasWaktu);
         delete window[namaCallback];
+        script.remove();
 
-        sedangMemproses = false;
+        tampilkanHasil(
+          "Gagal menghubungi sistem absensi."
+        );
       };
 
+      script.src =
+        urlAbsensi +
+        "?action=scan" +
+        "&id=" + encodeURIComponent(staffId) +
+        "&token=" + encodeURIComponent(token) +
+        "&callback=" + encodeURIComponent(namaCallback);
 
       document.body.appendChild(script);
-
     }
-
 
     function gagalScan(errorMessage) {
-      // Kesalahan pembacaan sementara diabaikan
+      // Kesalahan pembacaan sementara diabaikan.
     }
 
-
-    const scanner =
-      new Html5Qrcode("reader");
-
+    const scanner = new Html5Qrcode("reader");
 
     Html5Qrcode.getCameras()
-
       .then(function(devices) {
+        if (!devices || !devices.length) {
+          hasil.innerText = "Kamera tidak ditemukan.";
+          return;
+        }
 
-        if (devices && devices.length) {
+        let kameraId = devices[0].id;
 
-          // Gunakan kamera USB jika tersedia
-          let kameraId = devices[0].id;
-
-          for (let i = 0; i < devices.length; i++) {
-
-            if (
-              devices[i].label &&
-              devices[i].label
-                .toLowerCase()
-                .includes("usb")
-            ) {
-
-              kameraId = devices[i].id;
-              break;
-            }
+        for (let i = 0; i < devices.length; i++) {
+          if (
+            devices[i].label &&
+            devices[i].label.toLowerCase().includes("usb")
+          ) {
+            kameraId = devices[i].id;
+            break;
           }
-
-
-          scanner.start(
-
-            kameraId,
-
-            {
-              fps: 10,
-              qrbox: 250
-            },
-
-            berhasilScan,
-            gagalScan
-
-          )
-
-          .then(function() {
-
-            hasil.innerText =
-              "Kamera aktif.\n\n" +
-              "Silakan arahkan QR Code ke kamera.";
-
-          })
-
-          .catch(function(error) {
-
-            hasil.innerText =
-              "Kamera tidak dapat dibuka:\n" +
-              error;
-
-          });
-
         }
 
-        else {
-
+        scanner.start(
+          kameraId,
+          { fps: 10, qrbox: 250 },
+          berhasilScan,
+          gagalScan
+        )
+        .then(function() {
           hasil.innerText =
-            "Kamera tidak ditemukan.";
-
-        }
-
+            "Kamera aktif.\n\n" +
+            "Silakan arahkan QR Code ke kamera.";
+        })
+        .catch(function(error) {
+          hasil.innerText =
+            "Kamera tidak dapat dibuka:\n" + error;
+        });
       })
-
       .catch(function(error) {
-
         hasil.innerText =
-          "Tidak dapat mengakses kamera:\n" +
-          error;
-
+          "Tidak dapat mengakses kamera:\n" + error;
       });
-
   </script>
-
 </body>
 </html>
