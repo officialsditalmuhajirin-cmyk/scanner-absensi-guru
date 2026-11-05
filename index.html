@@ -37,6 +37,23 @@
       white-space: pre-line;
       line-height: 1.6;
     }
+
+    #tombolSuara {
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: bold;
+      color: white;
+      background: #198754;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    #statusSuara {
+      font-size: 14px;
+      margin-top: 10px;
+      color: #555;
+    }
   </style>
 </head>
 
@@ -46,11 +63,57 @@
     SDIT & YAYASAN AL MUHAJIRIN
   </h1>
 
+  <button id="tombolSuara" onclick="aktifkanSuara()">
+    AKTIFKAN SUARA
+  </button>
+
+  <div id="statusSuara">Suara notifikasi belum diaktifkan.</div>
+
   <div id="reader"></div>
   <div id="hasil">Menyiapkan kamera...</div>
 
   <script>
     const hasil = document.getElementById("hasil");
+    const statusSuara = document.getElementById("statusSuara");
+    const tombolSuara = document.getElementById("tombolSuara");
+
+    let suaraAktif = false;
+
+    // AKTIFKAN SUARA
+    function aktifkanSuara() {
+      if (!("speechSynthesis" in window)) {
+        statusSuara.innerText =
+          "Browser tidak mendukung fitur suara.";
+        return;
+      }
+
+      suaraAktif = true;
+
+      tombolSuara.innerText = "SUARA AKTIF";
+      tombolSuara.style.background = "#6c757d";
+
+      statusSuara.innerText =
+        "Suara notifikasi sudah aktif.";
+
+      bicara("Suara notifikasi absensi sudah aktif.");
+    }
+
+    // FUNGSI SUARA
+    function bicara(pesan) {
+      if (!suaraAktif || !("speechSynthesis" in window)) {
+        return;
+      }
+
+      window.speechSynthesis.cancel();
+
+      const suara = new SpeechSynthesisUtterance(pesan);
+      suara.lang = "id-ID";
+      suara.rate = 0.95;
+      suara.pitch = 1;
+      suara.volume = 1;
+
+      window.speechSynthesis.speak(suara);
+    }
 
     // WEB APP SDIT
     const URL_SDIT =
@@ -84,7 +147,10 @@
           throw new Error("ID tidak ditemukan");
         }
       } catch (error) {
-        tampilkanHasil("QR Code tidak dikenali.");
+        tampilkanHasil(
+          "QR Code tidak dikenali.",
+          "QR Code tidak dikenali. Silakan periksa QR Anda."
+        );
         return;
       }
 
@@ -99,7 +165,8 @@
         token = TOKEN_YAYASAN;
       } else {
         tampilkanHasil(
-          "ID tidak dikenali.\nPeriksa QR Code."
+          "ID tidak dikenali.\nPeriksa QR Code.",
+          "ID tidak dikenali. Silakan periksa QR Anda."
         );
         return;
       }
@@ -107,8 +174,12 @@
       kirimAbsensi(staffId, urlAbsensi, token);
     }
 
-    function tampilkanHasil(pesan) {
+    function tampilkanHasil(pesan, pesanSuara) {
       hasil.innerText = pesan;
+
+      if (pesanSuara) {
+        bicara(pesanSuara);
+      }
 
       setTimeout(function() {
         sedangMemproses = false;
@@ -137,7 +208,8 @@
 
         tampilkanHasil(
           "Tidak ada respons dari sistem absensi.\n" +
-          "Periksa koneksi dan URL Web App."
+          "Periksa koneksi dan URL Web App.",
+          "Absensi gagal, belum tercatat. Silakan periksa koneksi internet."
         );
       }, 15000);
 
@@ -170,6 +242,60 @@
           hasil.innerText += "\nWaktu: " + data.waktu;
         }
 
+        // SUARA BERDASARKAN HASIL DARI SERVER
+        if (data.success === true) {
+
+          let jenisAbsensi = "";
+
+          const keterangan =
+            (data.keterangan || "").toUpperCase();
+
+          if (
+            keterangan.includes("KEDATANGAN") ||
+            keterangan === "HADIR"
+          ) {
+            jenisAbsensi = "kedatangan";
+          } else if (
+            keterangan.includes("KEPULANGAN") ||
+            keterangan === "PULANG"
+          ) {
+            jenisAbsensi = "kepulangan";
+          }
+
+          if (jenisAbsensi) {
+            bicara(
+              "Absensi " + jenisAbsensi +
+              " berhasil dan sudah tercatat."
+            );
+          } else {
+            bicara(
+              "Absensi berhasil dan sudah tercatat."
+            );
+          }
+
+        } else {
+
+          const pesanServer =
+            (data.message || "").toLowerCase();
+
+          if (
+            pesanServer.includes("sudah") &&
+            (
+              pesanServer.includes("absen") ||
+              pesanServer.includes("scan") ||
+              pesanServer.includes("tercatat")
+            )
+          ) {
+            bicara(
+              "Absensi sudah tercatat sebelumnya."
+            );
+          } else {
+            bicara(
+              "Absensi gagal, belum tercatat."
+            );
+          }
+        }
+
         setTimeout(function() {
           sedangMemproses = false;
           hasil.innerText =
@@ -187,7 +313,8 @@
         script.remove();
 
         tampilkanHasil(
-          "Gagal menghubungi sistem absensi."
+          "Gagal menghubungi sistem absensi.",
+          "Absensi gagal, belum tercatat. Gagal menghubungi sistem."
         );
       };
 
