@@ -358,11 +358,14 @@
         }
 
         scanner.start(
-          kameraId,
-          { fps: 10, qrbox: 250 },
-          berhasilScan,
-          gagalScan
-        )
+  kameraId,
+  {
+    fps: 15,
+    formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE]
+  },
+  berhasilScan,
+  gagalScan
+)
         .then(function() {
           hasil.innerText =
             "Kamera aktif.\n\n" +
